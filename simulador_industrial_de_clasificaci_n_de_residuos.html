@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoSort AI - Simulador Industrial de Clasificación de Residuos</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom scrollbar for log area */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(51, 65, 85, 0.8);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(71, 85, 105, 1);
+        }
+        /* Glow effects */
+        .glow-cyan {
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.25);
+        }
+        .glow-emerald {
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.25);
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col overflow-x-hidden selection:bg-cyan-500 selection:text-slate-950">
+
+    <!-- Header Navigation -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-gradient-to-tr from-cyan-600 to-emerald-500 rounded-xl text-slate-950 font-bold shadow-lg shadow-cyan-500/20">
+                    <i data-lucide="cpu" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight tracking-tight text-white flex items-center gap-2">
+                        EcoSort <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono">v2.4 AI-Vision</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Simulador de Clasificación Automatizada en Tiempo Real</p>
+                </div>
+            </div>
+
+            <!-- Status Indicator -->
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-full">
+                    <span id="statusPing" class="relative flex h-3 w-3">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    <span id="statusText" class="text-xs font-medium text-slate-300 uppercase tracking-wider font-mono">LISTO</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left / Top Column: Control & Canvas Viewport (8 Cols) -->
+        <div class="lg:col-span-8 flex flex-col gap-6">
+
+            <!-- Control Toolbar -->
+            <div class="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 shadow-xl">
+                <div class="flex items-center gap-3">
+                    <button id="btnTogglePlay" class="px-5 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 active:scale-95">
+                        <i data-lucide="play" class="w-4 h-4 fill-current" id="playIcon"></i>
+                        <span id="playBtnText">Iniciar Proceso</span>
+                    </button>
+                    <button id="btnReset" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl flex items-center gap-2 transition-all border border-slate-700 active:scale-95">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                        <span>Reiniciar</span>
+                    </button>
+                </div>
+
+                <!-- Speed Slider -->
+                <div class="flex items-center gap-4 bg-slate-950 px-4 py-2 rounded-xl border border-slate-800/80">
+                    <div class="flex items-center gap-2 text-slate-400 text-xs font-medium">
+                        <i data-lucide="gauge" class="w-4 h-4 text-cyan-400"></i>
+                        <span>Velocidad Cinta:</span>
+                    </div>
+                    <input type="range" id="speedSlider" min="1" max="5" step="0.5" value="2" class="w-24 accent-cyan-500 cursor-pointer">
+                    <span id="speedVal" class="text-xs font-mono font-bold text-cyan-400 w-8">2.0x</span>
+                </div>
+            </div>
+
+            <!-- Visual Conveyor Canvas Container -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col relative">
+                
+                <!-- Canvas Titlebar / Overlay info -->
+                <div class="px-4 py-3 bg-slate-950/70 border-b border-slate-800/80 flex justify-between items-center text-xs font-mono">
+                    <span class="text-slate-400 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-cyan-500"></span> CAM-SCANNER #01 [VISUAL AI ACTIVE]
+                    </span>
+                    <span class="text-slate-400">TOLVA: <strong id="hopperCountText" class="text-cyan-400">20 piezas</strong> | BATCH: <strong id="batchProgressText" class="text-white">0 / 20</strong></span>
+                </div>
+
+                <!-- Interactive Conveyor Canvas -->
+                <div class="relative w-full h-[340px] sm:h-[400px] bg-slate-950 flex items-center justify-center">
+                    <canvas id="conveyorCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+                </div>
+
+                <!-- Legend Footbar -->
+                <div class="p-3 bg-slate-950/90 border-t border-slate-800/80 grid grid-cols-3 gap-2 text-center text-xs font-medium">
+                    <div class="flex items-center justify-center gap-2 text-cyan-400 bg-cyan-950/30 py-1.5 rounded-lg border border-cyan-900/40">
+                        <span class="w-3 h-3 rounded-full bg-cyan-400 inline-block shadow-sm shadow-cyan-400"></span> Contenedor Plástico
+                    </div>
+                    <div class="flex items-center justify-center gap-2 text-amber-400 bg-amber-950/30 py-1.5 rounded-lg border border-amber-900/40">
+                        <span class="w-3 h-3 rounded-full bg-amber-400 inline-block shadow-sm shadow-amber-400"></span> Contenedor Metal
+                    </div>
+                    <div class="flex items-center justify-center gap-2 text-emerald-400 bg-emerald-950/30 py-1.5 rounded-lg border border-emerald-900/40">
+                        <span class="w-3 h-3 rounded-full bg-emerald-400 inline-block shadow-sm shadow-emerald-400"></span> Contenedor Papel
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-time Event Log Table -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-64">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                        <i data-lucide="list-filter" class="w-4 h-4 text-cyan-400"></i>
+                        Registro de Detecciones en Tiempo Real
+                    </h3>
+                    <span class="text-[11px] text-slate-500 font-mono">Respuesta Promedio: ~12ms</span>
+                </div>
+                <div class="flex-1 overflow-y-auto pr-1">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="sticky top-0 bg-slate-900 text-slate-400 border-b border-slate-800 uppercase text-[10px]">
+                            <tr>
+                                <th class="py-2 px-3">Hora</th>
+                                <th class="py-2 px-3">ID Pieza</th>
+                                <th class="py-2 px-3">Material Identificado</th>
+                                <th class="py-2 px-3 text-center">Confianza AI</th>
+                                <th class="py-2 px-3 text-right">Destino</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logTableBody" class="divide-y divide-slate-800/60 text-slate-300">
+                            <!-- Logs dynamically inserted here -->
+                            <tr id="emptyLog" class="text-slate-600">
+                                <td colspan="5" class="py-8 text-center italic">Esperando inicio de la simulación...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Metrics & Analytics Dashboard (4 Cols) -->
+        <div class="lg:col-span-4 flex flex-col gap-6">
+
+            <!-- Batch Progress Card -->
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col gap-3">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-medium text-slate-400">Progreso del Lote (20 Piezas)</span>
+                    <span id="batchPercent" class="text-xs font-mono font-bold text-cyan-400">0%</span>
+                </div>
+                <div class="w-full bg-slate-950 rounded-full h-3 p-0.5 border border-slate-800">
+                    <div id="progressBar" class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full transition-all duration-300 w-0"></div>
+                </div>
+                <div class="flex justify-between items-center text-xs text-slate-400 pt-1 font-mono">
+                    <span>En Tolva: <b id="countInHopper" class="text-cyan-400">20</b></span>
+                    <span>Procesados: <b id="countTotal" class="text-white">0</b></span>
+                </div>
+            </div>
+
+            <!-- Material Category Cards -->
+            <div class="grid grid-cols-1 gap-4">
+
+                <!-- Plastic Card -->
+                <div class="bg-slate-900 border border-slate-800/80 hover:border-cyan-500/40 p-4 rounded-2xl shadow-xl transition-all flex items-center justify-between relative overflow-hidden group">
+                    <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-cyan-400"></div>
+                    <div class="flex items-center gap-3">
+                        <div class="p-3 bg-cyan-950/60 text-cyan-400 rounded-xl border border-cyan-800/50">
+                            <i data-lucide="wine" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-semibold uppercase text-slate-400">Plásticos (PET/HDPE)</h4>
+                            <span id="countPlastic" class="text-2xl font-bold font-mono text-white">0</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span id="pctPlastic" class="text-xs font-mono text-cyan-400 font-semibold">0%</span>
+                        <p class="text-[10px] text-slate-500">del total</p>
+                    </div>
+                </div>
+
+                <!-- Metal Card -->
+                <div class="bg-slate-900 border border-slate-800/80 hover:border-amber-500/40 p-4 rounded-2xl shadow-xl transition-all flex items-center justify-between relative overflow-hidden group">
+                    <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-400"></div>
+                    <div class="flex items-center gap-3">
+                        <div class="p-3 bg-amber-950/60 text-amber-400 rounded-xl border border-amber-800/50">
+                            <i data-lucide="can" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-semibold uppercase text-slate-400">Metales (Al/Fe)</h4>
+                            <span id="countMetal" class="text-2xl font-bold font-mono text-white">0</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span id="pctMetal" class="text-xs font-mono text-amber-400 font-semibold">0%</span>
+                        <p class="text-[10px] text-slate-500">del total</p>
+                    </div>
+                </div>
+
+                <!-- Paper Card -->
+                <div class="bg-slate-900 border border-slate-800/80 hover:border-emerald-500/40 p-4 rounded-2xl shadow-xl transition-all flex items-center justify-between relative overflow-hidden group">
+                    <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-emerald-400"></div>
+                    <div class="flex items-center gap-3">
+                        <div class="p-3 bg-emerald-950/60 text-emerald-400 rounded-xl border border-emerald-800/50">
+                            <i data-lucide="newspaper" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-semibold uppercase text-slate-400">Papel / Cartón</h4>
+                            <span id="countPaper" class="text-2xl font-bold font-mono text-white">0</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span id="pctPaper" class="text-xs font-mono text-emerald-400 font-semibold">0%</span>
+                        <p class="text-[10px] text-slate-500">del total</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Key System Performance KPI Indicators -->
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl flex-1 flex flex-col justify-between gap-4">
+                <h3 class="text-xs font-semibold uppercase text-slate-400 tracking-wider flex items-center justify-between">
+                    <span>Métricas de Rendimiento</span>
+                    <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+                </h3>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
+                        <span class="text-[10px] text-slate-500 block">Precisión IA</span>
+                        <span id="statAccuracy" class="text-lg font-bold font-mono text-emerald-400">98.4%</span>
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
+                        <span class="text-[10px] text-slate-500 block">Ritmo Estimado</span>
+                        <span id="statPpm" class="text-lg font-bold font-mono text-cyan-400">45 ppm</span>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+                        <span class="text-xs text-slate-300">Eficiencia Operativa</span>
+                    </div>
+                    <span class="text-xs font-mono font-bold text-amber-400">99.1%</span>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Footer Information -->
+    <footer class="border-t border-slate-800 bg-slate-900/50 py-3 text-center text-xs text-slate-500">
+        Simulador de Clasificación Automática de Residuos Industrial &copy; 2026 — Listo para Vercel / GitHub Pages
+    </footer>
+
+    <!-- JavaScript Logic Simulation Code -->
+    <script>
+        // --- CONSTANTS & CONFIGURATION ---
+        const TOTAL_ITEMS_BATCH = 20;
+        const TYPES = {
+            PLASTIC: { id: 'PLASTIC', name: 'Plástico', color: '#06b6d4', binXPct: 0.42, icon: 'wine' },
+            METAL:   { id: 'METAL',   name: 'Metal',    color: '#f59e0b', binXPct: 0.65, icon: 'can' },
+            PAPER:   { id: 'PAPER',   name: 'Papel',    color: '#10b981', binXPct: 0.88, icon: 'newspaper' }
+        };
+
+        const TYPE_KEYS = ['PLASTIC', 'METAL', 'PAPER'];
+
+        // --- SIMULATION STATE ---
+        let isRunning = false;
+        let speedMultiplier = 2.0;
+        let itemsProcessed = 0;
+        let itemsCounts = { PLASTIC: 0, METAL: 0, PAPER: 0 };
+        let itemsList = [];
+        let animationFrameId = null;
+        let spawnTimer = 0;
+        let hopperItems = []; // Visual items inside hopper
+
+        // Conveyor belt offset for movement animation
+        let beltOffset = 0;
+        let gateOpen = false;
+
+        // Pistons activation state [ { targetX, active, extension, type } ]
+        const pistons = [
+            { targetX: 0, active: false, extension: 0, type: 'PLASTIC' },
+            { targetX: 0, active: false, extension: 0, type: 'METAL' },
+            { targetX: 0, active: false, extension: 0, type: 'PAPER' }
+        ];
+
+        // --- CANVAS REFERENCES & INITIALIZATION ---
+        const canvas = document.getElementById('conveyorCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            
+            // Recalculate piston X coordinates based on width
+            pistons[0].targetX = canvas.width * TYPES.PLASTIC.binXPct;
+            pistons[1].targetX = canvas.width * TYPES.METAL.binXPct;
+            pistons[2].targetX = canvas.width * TYPES.PAPER.binXPct;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- GENERATE PRE-DEFINED 20 ITEMS BATCH ---
+        function generateBatch() {
+            const items = [];
+            hopperItems = [];
+            
+            for (let i = 0; i < TOTAL_ITEMS_BATCH; i++) {
+                const randomTypeKey = TYPE_KEYS[Math.floor(Math.random() * TYPE_KEYS.length)];
+                const typeObj = TYPES[randomTypeKey];
+                
+                let subName = typeObj.name;
+                if(typeObj.id === 'PLASTIC') subName = ['Botella PET', 'Envase HDPE', 'Bolsa Polímero'][Math.floor(Math.random()*3)];
+                if(typeObj.id === 'METAL') subName = ['Lata de Aluminio', 'Contenedor Hojalata', 'Tapa Metálica'][Math.floor(Math.random()*3)];
+                if(typeObj.id === 'PAPER') subName = ['Caja de Cartón', 'Periódico', 'Folleto de Papel'][Math.floor(Math.random()*3)];
+
+                const itemObj = {
+                    id: `ITM-${1000 + i + 1}`,
+                    typeKey: randomTypeKey,
+                    typeName: subName,
+                    color: typeObj.color,
+                    confidence: (94 + Math.random() * 5.8).toFixed(1),
+                    x: 0,
+                    y: 0,
+                    state: 'IN_HOPPER', // 'IN_HOPPER', 'FALLING', 'ON_BELT', 'DIVERTING', 'DIVERTED'
+                    fallSpeed: 0,
+                    divertYProgress: 0,
+                    scanned: false,
+                    // Random offsets inside hopper for realistic pile rendering
+                    hopperRelX: (Math.random() - 0.5) * 44,
+                    hopperRelY: - (i * 9) - 15
+                };
+
+                items.push(itemObj);
+                hopperItems.push(itemObj);
+            }
+            return items;
+        }
+
+        // --- DRAWING HELPER FUNCTIONS ---
+        function drawHopper(width, height, beltY) {
+            const hopperX = 65;
+            const hopperTopY = 15;
+            const hopperBottomY = beltY - 20;
+
+            // Draw Hopper Support Frame
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(15, hopperTopY);
+            ctx.lineTo(15, hopperBottomY + 20);
+            ctx.moveTo(115, hopperTopY);
+            ctx.lineTo(115, hopperBottomY + 20);
+            ctx.stroke();
+
+            // Draw Items Piled Inside Hopper
+            hopperItems.forEach((item) => {
+                if (item.state === 'IN_HOPPER') {
+                    ctx.save();
+                    ctx.translate(hopperX + item.hopperRelX, hopperBottomY - 15 + item.hopperRelY);
+                    ctx.fillStyle = item.color;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 7, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            });
+
+            // Draw Funnel Glass / Metallic Structure Body
+            ctx.fillStyle = 'rgba(30, 41, 59, 0.65)';
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(20, hopperTopY);
+            ctx.lineTo(110, hopperTopY);
+            ctx.lineTo(80, hopperBottomY);
+            ctx.lineTo(50, hopperBottomY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Hopper Glass Highlights
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(32, hopperTopY + 8);
+            ctx.lineTo(54, hopperBottomY - 10);
+            ctx.stroke();
+
+            // Hopper Label Badge
+            ctx.fillStyle = '#0284c7';
+            ctx.fillRect(hopperX - 30, hopperTopY + 12, 60, 16);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 9px JetBrains Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText("TOLVA-FEED", hopperX, hopperTopY + 23);
+
+            // Gate Valve / Dispenser mechanism at bottom of hopper
+            const gateY = hopperBottomY + 4;
+            ctx.fillStyle = gateOpen ? '#10b981' : '#f43f5e';
+            ctx.fillRect(hopperX - 22, gateY, 44, 6);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 8px Inter';
+            ctx.fillText(gateOpen ? "DOSIFICANDO" : "CERRADO", hopperX, gateY + 14);
+        }
+
+        function drawConveyor() {
+            const width = canvas.width;
+            const height = canvas.height;
+            const beltY = height * 0.44;
+            const beltHeight = 70;
+
+            // Draw Background Structure
+            ctx.fillStyle = '#090d16';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw Hopper Component
+            drawHopper(width, height, beltY);
+
+            // Draw Conveyor Legs / Support
+            ctx.fillStyle = '#1e293b';
+            for (let x = 150; x < width; x += 140) {
+                ctx.fillRect(x, beltY + beltHeight, 16, height - (beltY + beltHeight) - 80);
+            }
+
+            // Draw Belt Main Track Frame (Starts under hopper)
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(35, beltY - 6, width - 35, beltHeight + 12);
+
+            // Draw Moving Belt Surface
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(35, beltY, width - 35, beltHeight);
+
+            // Moving texture lines
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            const stripeSpacing = 30;
+            for (let x = 35 + (beltOffset % stripeSpacing) - stripeSpacing; x < width; x += stripeSpacing) {
+                if (x >= 35) {
+                    ctx.moveTo(x, beltY);
+                    ctx.lineTo(x + 15, beltY + beltHeight);
+                }
+            }
+            ctx.stroke();
+
+            // Belt Borders
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(35, beltY - 4, width - 35, 4);
+            ctx.fillRect(35, beltY + beltHeight, width - 35, 4);
+
+            // --- DRAW VISION AI CAMERA / SENSOR STATION ---
+            const sensorX = width * 0.25;
+            
+            // Scanner Frame Top
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(sensorX - 25, 20, 50, 45);
+            ctx.strokeStyle = '#06b6d4';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(sensorX - 25, 20, 50, 45);
+
+            // Scanner Camera Lens
+            ctx.fillStyle = '#06b6d4';
+            ctx.beginPath();
+            ctx.arc(sensorX, 48, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Laser Beam scanning effect
+            const beamGradient = ctx.createLinearGradient(sensorX, 48, sensorX, beltY + beltHeight);
+            beamGradient.addColorStop(0, 'rgba(6, 182, 212, 0.7)');
+            beamGradient.addColorStop(0.8, 'rgba(6, 182, 212, 0.15)');
+            beamGradient.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
+
+            ctx.fillStyle = beamGradient;
+            ctx.beginPath();
+            ctx.moveTo(sensorX - 4, 48);
+            ctx.lineTo(sensorX + 4, 48);
+            ctx.lineTo(sensorX + 35, beltY + beltHeight);
+            ctx.lineTo(sensorX - 35, beltY + beltHeight);
+            ctx.closePath();
+            ctx.fill();
+
+            // Center Red Laser line
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(sensorX, 48);
+            ctx.lineTo(sensorX, beltY + beltHeight);
+            ctx.stroke();
+
+            // --- DRAW 3 DEFLECTOR PISTONS & BINS ---
+            TYPE_KEYS.forEach((typeKey, idx) => {
+                const typeObj = TYPES[typeKey];
+                const binX = width * typeObj.binXPct;
+                const binY = beltY + beltHeight + 45;
+                const binWidth = 75;
+                const binHeight = 65;
+
+                // Draw Piston Mount on Top Side
+                const piston = pistons[idx];
+                piston.targetX = binX;
+
+                ctx.fillStyle = '#334155';
+                ctx.fillRect(binX - 15, beltY - 45, 30, 35);
+
+                // Extended Piston Arm
+                const currentArmLength = 10 + (piston.extension * 45);
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillRect(binX - 6, beltY - 10, 12, currentArmLength);
+
+                // Piston Pusher Head
+                ctx.fillStyle = typeObj.color;
+                ctx.fillRect(binX - 25, beltY - 10 + currentArmLength, 50, 10);
+
+                // Draw Chute / Slide to Bin
+                ctx.fillStyle = '#1e293b';
+                ctx.beginPath();
+                ctx.moveTo(binX - 30, beltY + beltHeight);
+                ctx.lineTo(binX + 30, beltY + beltHeight);
+                ctx.lineTo(binX + binWidth / 2, binY);
+                ctx.lineTo(binX - binWidth / 2, binY);
+                ctx.closePath();
+                ctx.fill();
+
+                // Draw Bin Box
+                ctx.fillStyle = '#0f172a';
+                ctx.strokeStyle = typeObj.color;
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(binX - binWidth/2, binY, binWidth, binHeight);
+                ctx.strokeRect(binX - binWidth/2, binY, binWidth, binHeight);
+
+                // Bin Icon/Label text
+                ctx.fillStyle = typeObj.color;
+                ctx.font = 'bold 11px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(typeObj.name.toUpperCase(), binX, binY + 22);
+
+                // Bin items count badge
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 14px JetBrains Mono, monospace';
+                ctx.fillText(itemsCounts[typeKey], binX, binY + 45);
+            });
+        }
+
+        // Draw individual item icon shape on belt / falling
+        function drawItem(item) {
+            if (item.state === 'DIVERTED' || item.state === 'IN_HOPPER') return;
+
+            const beltY = canvas.height * 0.44;
+            const beltHeight = 70;
+            const centerY = beltY + (beltHeight / 2);
+
+            let renderY = item.y;
+
+            ctx.save();
+            ctx.translate(item.x, renderY);
+
+            // Item Shadow
+            if (item.state !== 'FALLING') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+                ctx.beginPath();
+                ctx.ellipse(0, 12, 16, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Item Outer Glow if scanned
+            if (item.scanned && item.state === 'ON_BELT') {
+                ctx.strokeStyle = item.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, 18, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // Draw shape based on item type
+            ctx.fillStyle = item.color;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+
+            if (item.typeKey === 'PLASTIC') {
+                ctx.beginPath();
+                ctx.roundRect(-8, -14, 16, 28, 4);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-4, -18, 8, 4);
+            } else if (item.typeKey === 'METAL') {
+                ctx.beginPath();
+                ctx.roundRect(-10, -12, 20, 24, 6);
+                ctx.fill();
+                ctx.stroke();
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                ctx.beginPath();
+                ctx.arc(0, -6, 6, 0, Math.PI * 2);
+                ctx.stroke();
+            } else {
+                ctx.beginPath();
+                ctx.rect(-12, -12, 24, 24);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.fillRect(-3, -12, 6, 24);
+            }
+
+            // Draw Item Label
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '9px JetBrains Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText(item.id, 0, -20);
+
+            ctx.restore();
+        }
+
+        // --- MAIN SIMULATION LOOP ---
+        function updateSimulation() {
+            if (!isRunning) return;
+
+            const speed = 1.2 * speedMultiplier;
+            beltOffset += speed;
+
+            const beltY = canvas.height * 0.44;
+            const beltHeight = 70;
+            const centerY = beltY + (beltHeight / 2);
+            const hopperX = 65;
+            const hopperBottomY = beltY - 20;
+            const sensorX = canvas.width * 0.25;
+
+            // --- HOPPER DISPENSER LOGIC ---
+            spawnTimer += 1 * speedMultiplier;
+            const spawnInterval = 120 / speedMultiplier; // Interval for dropping next item
+
+            if (spawnTimer >= spawnInterval && hopperItems.length > 0) {
+                spawnTimer = 0;
+                gateOpen = true;
+                setTimeout(() => { gateOpen = false; }, 300);
+
+                // Release next item from hopper
+                const nextItem = hopperItems.shift();
+                nextItem.state = 'FALLING';
+                nextItem.x = hopperX;
+                nextItem.y = hopperBottomY;
+                nextItem.fallSpeed = 2;
+            }
+
+            // --- ITEMS MOVEMENT & PHYSICS ---
+            itemsList.forEach((item) => {
+                if (item.state === 'DIVERTED' || item.state === 'IN_HOPPER') return;
+
+                // Item falling by gravity from hopper to conveyor
+                if (item.state === 'FALLING') {
+                    item.y += item.fallSpeed;
+                    item.fallSpeed += 0.4; // Gravity acceleration
+
+                    if (item.y >= centerY) {
+                        item.y = centerY;
+                        item.state = 'ON_BELT';
+                    }
+                }
+                // Item moving forward on belt
+                else if (item.state === 'ON_BELT') {
+                    item.x += speed;
+
+                    // Sensor detection trigger
+                    if (!item.scanned && item.x >= sensorX - 5 && item.x <= sensorX + 15) {
+                        item.scanned = true;
+                        logDetection(item);
+                    }
+
+                    // Check for diversion piston trigger
+                    const targetTypeObj = TYPES[item.typeKey];
+                    const divertBinX = canvas.width * targetTypeObj.binXPct;
+
+                    if (item.x >= divertBinX - 10 && item.x <= divertBinX + 10) {
+                        item.state = 'DIVERTING';
+                        
+                        // Activate corresponding piston animation
+                        const pistonIdx = TYPE_KEYS.indexOf(item.typeKey);
+                        if (pistonIdx !== -1) {
+                            pistons[pistonIdx].active = true;
+                        }
+                    }
+                } 
+                // Item being diverted into bin
+                else if (item.state === 'DIVERTING') {
+                    item.divertYProgress += 0.08 * speedMultiplier;
+                    item.y = centerY + (item.divertYProgress * 70);
+                    item.x += speed * 0.2;
+
+                    if (item.divertYProgress >= 1) {
+                        item.state = 'DIVERTED';
+                        itemsProcessed++;
+                        itemsCounts[item.typeKey]++;
+                        updateDashboardMetrics();
+                    }
+                }
+            });
+
+            // Update Piston extension animation logic
+            pistons.forEach(piston => {
+                if (piston.active) {
+                    piston.extension += 0.15 * speedMultiplier;
+                    if (piston.extension >= 1) {
+                        piston.active = false;
+                    }
+                } else if (piston.extension > 0) {
+                    piston.extension -= 0.1 * speedMultiplier;
+                    if (piston.extension < 0) piston.extension = 0;
+                }
+            });
+
+            // Stop simulation when all items are processed
+            if (itemsProcessed >= TOTAL_ITEMS_BATCH) {
+                pauseSimulation();
+                document.getElementById('statusText').textContent = 'COMPLETADO';
+                document.getElementById('statusPing').innerHTML = `<span class="relative inline-flex rounded-full h-3 w-3 bg-cyan-400"></span>`;
+            }
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawConveyor();
+            itemsList.forEach(drawItem);
+        }
+
+        function gameLoop() {
+            updateSimulation();
+            render();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- DASHBOARD UI UPDATES ---
+        function updateDashboardMetrics() {
+            const total = itemsProcessed;
+            const inHopper = hopperItems.length;
+            const percent = Math.round((total / TOTAL_ITEMS_BATCH) * 100);
+
+            // Batch & Hopper Progress
+            document.getElementById('countTotal').textContent = total;
+            document.getElementById('countInHopper').textContent = inHopper;
+            document.getElementById('hopperCountText').textContent = `${inHopper} piezas`;
+            document.getElementById('batchProgressText').textContent = `${total} / ${TOTAL_ITEMS_BATCH}`;
+            document.getElementById('batchPercent').textContent = `${percent}%`;
+            document.getElementById('progressBar').style.width = `${percent}%`;
+
+            // Material Counts & Percentages
+            document.getElementById('countPlastic').textContent = itemsCounts.PLASTIC;
+            document.getElementById('countMetal').textContent = itemsCounts.METAL;
+            document.getElementById('countPaper').textContent = itemsCounts.PAPER;
+
+            const plasticPct = total > 0 ? Math.round((itemsCounts.PLASTIC / total) * 100) : 0;
+            const metalPct = total > 0 ? Math.round((itemsCounts.METAL / total) * 100) : 0;
+            const paperPct = total > 0 ? Math.round((itemsCounts.PAPER / total) * 100) : 0;
+
+            document.getElementById('pctPlastic').textContent = `${plasticPct}%`;
+            document.getElementById('pctMetal').textContent = `${metalPct}%`;
+            document.getElementById('pctPaper').textContent = `${paperPct}%`;
+
+            // Dynamic PPM metric based on speed slider
+            const ppm = Math.round(25 * speedMultiplier);
+            document.getElementById('statPpm').textContent = `${ppm} ppm`;
+        }
+
+        function logDetection(item) {
+            const tableBody = document.getElementById('logTableBody');
+            const emptyLog = document.getElementById('emptyLog');
+            if (emptyLog) emptyLog.remove();
+
+            const timeStr = new Date().toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            let badgeColorClass = 'bg-cyan-950 text-cyan-400 border-cyan-800';
+            if (item.typeKey === 'METAL') badgeColorClass = 'bg-amber-950 text-amber-400 border-amber-800';
+            if (item.typeKey === 'PAPER') badgeColorClass = 'bg-emerald-950 text-emerald-400 border-emerald-800';
+
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-slate-800/40 transition-colors animate-pulse';
+            row.innerHTML = `
+                <td class="py-2.5 px-3 text-slate-400">${timeStr}</td>
+                <td class="py-2.5 px-3 font-bold text-white">${item.id}</td>
+                <td class="py-2.5 px-3 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full" style="background-color: ${item.color}"></span>
+                    ${item.typeName}
+                </td>
+                <td class="py-2.5 px-3 text-center text-emerald-400 font-semibold">${item.confidence}%</td>
+                <td class="py-2.5 px-3 text-right">
+                    <span class="px-2 py-0.5 rounded border text-[10px] font-bold ${badgeColorClass}">
+                        ${TYPES[item.typeKey].name.toUpperCase()}
+                    </span>
+                </td>
+            `;
+
+            tableBody.insertBefore(row, tableBody.firstChild);
+            setTimeout(() => row.classList.remove('animate-pulse'), 1000);
+        }
+
+        // --- CONTROLS LOGIC ---
+        function startSimulation() {
+            if (itemsProcessed >= TOTAL_ITEMS_BATCH) return;
+            isRunning = true;
+            document.getElementById('playBtnText').textContent = 'Pausar Simulación';
+            document.getElementById('playIcon').setAttribute('data-lucide', 'pause');
+            document.getElementById('statusText').textContent = 'EN PROCESO';
+            document.getElementById('statusPing').innerHTML = `
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+            `;
+            lucide.createIcons();
+        }
+
+        function pauseSimulation() {
+            isRunning = false;
+            document.getElementById('playBtnText').textContent = 'Continuar';
+            document.getElementById('playIcon').setAttribute('data-lucide', 'play');
+            document.getElementById('statusText').textContent = 'PAUSADO';
+            document.getElementById('statusPing').innerHTML = `<span class="relative inline-flex rounded-full h-3 w-3 bg-amber-400"></span>`;
+            lucide.createIcons();
+        }
+
+        function resetSimulation() {
+            pauseSimulation();
+            itemsProcessed = 0;
+            spawnTimer = 0;
+            gateOpen = false;
+            itemsCounts = { PLASTIC: 0, METAL: 0, PAPER: 0 };
+            itemsList = generateBatch();
+            
+            // Clear log table
+            const tableBody = document.getElementById('logTableBody');
+            tableBody.innerHTML = `
+                <tr id="emptyLog" class="text-slate-600">
+                    <td colspan="5" class="py-8 text-center italic">Esperando inicio de la simulación...</td>
+                </tr>
+            `;
+
+            document.getElementById('statusText').textContent = 'LISTO';
+            document.getElementById('statusPing').innerHTML = `
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+            `;
+
+            updateDashboardMetrics();
+            render();
+        }
+
+        // Event Listeners
+        document.getElementById('btnTogglePlay').addEventListener('click', () => {
+            if (isRunning) {
+                pauseSimulation();
+            } else {
+                startSimulation();
+            }
+        });
+
+        document.getElementById('btnReset').addEventListener('click', resetSimulation);
+
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            speedMultiplier = parseFloat(e.target.value);
+            document.getElementById('speedVal').textContent = `${speedMultiplier.toFixed(1)}x`;
+            updateDashboardMetrics();
+        });
+
+        // Initialize App on Window Load
+        window.onload = () => {
+            lucide.createIcons();
+            resizeCanvas();
+            itemsList = generateBatch();
+            updateDashboardMetrics();
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
